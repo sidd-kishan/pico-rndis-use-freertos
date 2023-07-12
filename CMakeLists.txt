@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-set(PICO_BOARD "pico")
+set(PICO_BOARD pico_w)
 include(pico_sdk_import.cmake)
 project(test)
 add_executable(test)
@@ -43,7 +43,7 @@ else()
         ${TOP}/lib/lwip/src/include/
         #${PICO_LWIP_CONTRIB_PATH}/ports/freertos
         ${TOP}/lib/tinyusb/lib/networking
-        )
+		)
     
     target_sources(test PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/main.c
@@ -64,6 +64,7 @@ else()
         pico_lwip_contrib_freertos
         tinyusb_device 
         tinyusb_board  
+		pico_cyw43_arch_lwip_sys_freertos
         )
         pico_add_extra_outputs(test)
 endif()
