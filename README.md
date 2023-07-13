@@ -15,6 +15,7 @@ Use rndis in tinyusb and use freerots to create usb-related tasks.You can also u
 It requires a version of the `pico-sdk`.
 
 ```bash
+$ apt install git build-essential cmake gcc-arm-none-eabi doxygen libstdc++-arm-none-eabi-newlib iperf liblwip-dev unzip ninja-build
 $ git clone --recursive https://github.com/sidd-kishan/pico-rndis-use-freerots.git
 $ cd pico-rndis-use-freerots
 $ git clone https://github.com/sidd-kishan/pico-sdk.git
