@@ -29,6 +29,8 @@ $ cd build
 $ PICO_SDK_PATH=../pico-sdk cmake ..
 $ make -j$(nproc --all)
 ```
+![image](https://github.com/sidd-kishan/pico-rndis-use-freertos/assets/1007208/02351352-8e1d-4211-9bd5-a393dc6c9fe0)
+
 
 ### License
 This project is distributed by an [GPL-2.0 License](/LICENSE).
