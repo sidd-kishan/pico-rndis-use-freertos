@@ -22,7 +22,8 @@ $ git clone https://github.com/sidd-kishan/pico-sdk.git
 $ cd pico-sdk
 $ git submodule update --init
 $ cd lib
-$ git clone https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+$ git clone https://github.com/sidd-kishan/Rtos_course_project.git
+$ mv Rtos_course_project/FreeRTOS-Kernel/ .
 $ cd ../../
 $ mkdir build
 $ cd build
