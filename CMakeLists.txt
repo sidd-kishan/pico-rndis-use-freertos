@@ -43,6 +43,8 @@ else()
         ${TOP}/lib/lwip/src/include/
         #${PICO_LWIP_CONTRIB_PATH}/ports/freertos
         ${TOP}/lib/tinyusb/lib/networking
+		${FREERTOS_KERNEL_PATH}/include
+		${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/include
 		)
     
     target_sources(test PUBLIC
@@ -54,12 +56,13 @@ else()
         ${TOP}/lib/tinyusb/lib/networking/dhserver.c
         ${TOP}/lib/tinyusb/lib/networking/dnserver.c
         ${TOP}/lib/tinyusb/lib/networking/rndis_reports.c
+		${TOP}/src/rp2_common/pico_cyw43_arch/cyw43_arch_freertos.c
         )
     target_link_libraries(test PUBLIC 
         pico_stdlib 
         cmsis_core
         FreeRTOS-Kernel-Heap4
-        pico_lwip_iperf
+		pico_lwip_iperf
         pico_lwip
         pico_lwip_contrib_freertos
         tinyusb_device 

@@ -77,6 +77,7 @@ TaskHandle_t hid_stack[HID_STACK_SZIE];
 TaskHandle_t hid_taskdef;
 TaskHandle_t wifi_maindef_stack[configMINIMAL_STACK_SIZE];
 TaskHandle_t wifi_maindef;
+UBaseType_t uxCoreAffinityMask;
 
 void usb_device_task(void *param);
 void hid_task(void *params);
@@ -237,6 +238,7 @@ void tud_network_init_cb(void)
   }
 }
 #include "pico/cyw43_arch.h"
+#include "pico/cyw43_arch/arch_freertos.h"
 const char WIFI_SSID[] = "SSS_EXT";
 const char WIFI_PASSWORD[] = "1234567890";
 
@@ -275,6 +277,8 @@ int main(void)
   //  Create HID task
   (void)xTaskCreate(hid_task, "hid", HID_STACK_SZIE, NULL, 1, &hid_taskdef);
   (void)xTaskCreate(main_task, "wifi_main",5 * configMINIMAL_STACK_SIZE/2, NULL, 1, &wifi_maindef);
+  uxCoreAffinityMask = ( ( 1 << 1 ));
+  vTaskCoreAffinitySet( wifi_maindef, uxCoreAffinityMask );
   #if !(TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3))
   vTaskStartScheduler();
   #endif
