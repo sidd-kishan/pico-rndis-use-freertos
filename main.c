@@ -63,9 +63,9 @@
 
 // static task for usbd
 #if CFG_TUSB_DEBUG
-#define USBD_STACK_SIZE (2 * configMINIMAL_STACK_SIZE )
+#define USBD_STACK_SIZE (3 * configMINIMAL_STACK_SIZE )
 #else
-#define USBD_STACK_SIZE (2 * configMINIMAL_STACK_SIZE )
+#define USBD_STACK_SIZE (3 * configMINIMAL_STACK_SIZE )
 #endif
 
 StackType_t usb_device_stack[USBD_STACK_SIZE];
@@ -276,7 +276,7 @@ int main(void)
   // xTaskCreate()
   //  Create HID task
   (void)xTaskCreate(hid_task, "hid", HID_STACK_SZIE, NULL, 1, &hid_taskdef);
-  (void)xTaskCreate(main_task, "wifi_main",5 * configMINIMAL_STACK_SIZE/2, NULL, 1, &wifi_maindef);
+  (void)xTaskCreate(main_task, "wifi_main",5 * configMINIMAL_STACK_SIZE, NULL, 1, &wifi_maindef);
   uxCoreAffinityMask = ( ( 1 << 1 ));
   vTaskCoreAffinitySet( wifi_maindef, uxCoreAffinityMask );
   #if !(TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3))
