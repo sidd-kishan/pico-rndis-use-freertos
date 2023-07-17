@@ -68,21 +68,21 @@
 #define USBD_STACK_SIZE (3 * configMINIMAL_STACK_SIZE )
 #endif
 
-StackType_t usb_device_stack[USBD_STACK_SIZE];
-StaticTask_t usb_device_taskdef;
+TaskHandle_t usb_device_taskdef;
 
 // static task for hid
 #define HID_STACK_SZIE 2*configMINIMAL_STACK_SIZE
-TaskHandle_t hid_stack[HID_STACK_SZIE];
 TaskHandle_t hid_taskdef;
-TaskHandle_t wifi_maindef_stack[configMINIMAL_STACK_SIZE];
 TaskHandle_t wifi_maindef;
 UBaseType_t uxCoreAffinityMask;
+
+typedef void(* tcpip_init_done_fn) (void *arg);
 
 void usb_device_task(void *param);
 void hid_task(void *params);
 void main_task(void *params);
-
+int handle_data(int fd, void *ptr);
+void tcpip_init	(tcpip_init_done_fn 	initfunc,void *arg);
 /* lwip context */
 static struct netif netif_data;
 
