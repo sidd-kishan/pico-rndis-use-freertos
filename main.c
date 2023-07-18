@@ -459,9 +459,9 @@ int handle_data(int fd, void *ptr)
 {
   do
   {
-    char cmd[16];
+    char cmd[6];
     unsigned char buffer[8192], result[1024];
-    memset(cmd, 0, 16);
+    memset(cmd, 0, 6);
 
     if (sread(fd, cmd, 2) != 1)return 1;
 
