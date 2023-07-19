@@ -541,25 +541,4 @@ void hid_task(void *param)
   // Configure SSI and CGI handler
   //ssi_init(); 
   //cgi_init();
-
-  while (1)
-  {
-    // Poll every 10ms
-    vTaskDelay(pdMS_TO_TICKS(10));
-
-    uint32_t const btn = board_button_read();
-
-    // Remote wakeup
-    if (tud_suspended() && btn)
-    {
-      // Wake up host if we are in suspend mode
-      // and REMOTE_WAKEUP feature is enabled by host
-      tud_remote_wakeup();
-    }
-    else
-    {
-      // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
-      // send_hid_report(REPORT_ID_KEYBOARD, btn);
-    }
-  }
 }
