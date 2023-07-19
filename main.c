@@ -75,13 +75,13 @@ TaskHandle_t usb_device_taskdef;
 TaskHandle_t hid_taskdef;
 TaskHandle_t wifi_maindef;
 UBaseType_t uxCoreAffinityMask;
-
+SemaphoreHandle_t mutex;
 typedef void(* tcpip_init_done_fn) (void *arg);
 
 void usb_device_task(void *param);
 void hid_task(void *params);
 void main_task(void *params);
-int handle_data(int fd, void *ptr);
+int handle_data(int fd, fd_set *ptr);
 void tcpip_init	(tcpip_init_done_fn 	initfunc,void *arg);
 /* lwip context */
 static struct netif netif_data;
@@ -244,10 +244,12 @@ const char WIFI_PASSWORD[] = "1234567890";
 char scan_results[100];
 int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
     if (result) { 
+	//xSemaphoreTake(mutex, 10);
         sprintf(scan_results,"ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n",
             result->ssid, result->rssi, result->channel,
             result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5],
             result->auth_mode);
+    //xSemaphoreGive(mutex);
     }
     return 0;
 }
@@ -316,6 +318,7 @@ static void core1_entry()
 
 int main(void)
 {
+  mutex = xSemaphoreCreateMutex();
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 1, &usb_device_taskdef);
   // xTaskCreate()
@@ -441,48 +444,21 @@ int tcp_app_runloop()
 {
   return 0;
 }
-static int sread(int fd, void *target, int len)
-{
-  unsigned char *t = target;
-  while (len)
-  {
-    int r = read(fd, t, len);
-    if (r <= 0)
-      return r;
-    t += r;
-    len -= r;
-  }
-  return 1;
-}
 char xvcInfo[] = "prottype build info getinfo command xvcServer_v1.0:2048\n";
-int handle_data(int fd, void *ptr)
-{
-  do
-  {
-    char cmd[6];
-    unsigned char buffer[8192], result[1024];
-    memset(cmd, 0, 6);
+int handle_data(int fd, fd_set *conn) {
+    char buffer[1024];
+    ssize_t bytes_received, bytes_sent;
 
-    if (sread(fd, cmd, 2) != 1)return 1;
-
-    if (memcmp(cmd, "ge", 2) == 0)
-    {
-      if (sread(fd, cmd, 6) != 1)return 1;
-      if (write(fd, scan_results, strlen(scan_results)) != strlen(scan_results))return 1;
-	  break;
+    // Receive data from the client
+    bytes_received = recv(fd, buffer, sizeof(buffer), 0);
+    if (bytes_received <= 0) {
+        return 1; // Close the connection
+    } else {
+        // Send back the received data (echo)
+        bytes_sent = send(fd, buffer, bytes_received, 0);
     }
 
-    int len;
-    if (sread(fd, &len, 4) != 1)return 1;
-
-    int nr_bytes = (len + 7) / 8;
-    if (nr_bytes * 2 > sizeof(buffer))return 1;
-    if (sread(fd, buffer, nr_bytes * 2) != 1)return 1;
-    if (write(fd, result, nr_bytes) != nr_bytes)return 1;
-
-  } while (1);
-  /* Note: Need to fix JTAG state updates, until then no exit is allowed */
-  return 0;
+    return 0; // Continue the connection
 }
 /* This function initializes this lwIP test. When NO_SYS=1, this is done in
  * the main_loop context (there is no other one), when NO_SYS=0, this is done
