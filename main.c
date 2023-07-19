@@ -75,7 +75,6 @@ TaskHandle_t usb_device_taskdef;
 TaskHandle_t hid_taskdef;
 TaskHandle_t wifi_maindef;
 UBaseType_t uxCoreAffinityMask;
-SemaphoreHandle_t mutex;
 typedef void(* tcpip_init_done_fn) (void *arg);
 
 void usb_device_task(void *param);
@@ -272,10 +271,10 @@ void main_task(__unused void* params)
                 cyw43_wifi_scan_options_t scan_options = {0};
                 int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
                 if (err == 0) {
-                    printf("\nPerforming wifi scan\n");
+                    //printf("\nPerforming wifi scan\n");
                     scan_in_progress = true;
                 } else {
-                    printf("Failed to start scan: %d\n", err);
+                    //printf("Failed to start scan: %d\n", err);
                     scan_time = make_timeout_time_ms(10000); // wait 10s and scan again
                 }
             } else if (!cyw43_wifi_scan_active(&cyw43_state)) {
@@ -318,7 +317,6 @@ static void core1_entry()
 
 int main(void)
 {
-  mutex = xSemaphoreCreateMutex();
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 1, &usb_device_taskdef);
   // xTaskCreate()
@@ -366,7 +364,7 @@ int tcp_app()
     perror("bind");
     return 1;
   }
-  printf("%s,%d\n", __func__, __LINE__);
+  //printf("%s,%d\n", __func__, __LINE__);
   if (listen(s, 1) < 0)
   {
     perror("listen");
@@ -378,7 +376,7 @@ int tcp_app()
   FD_ZERO(&conn);
   FD_SET(s, &conn);
   maxfd = s;
-  printf("%s,%d\n", __func__, __LINE__);
+  //printf("%s,%d\n", __func__, __LINE__);
   while (1)
   {
     fd_set read = conn, except = conn;
@@ -400,14 +398,14 @@ int tcp_app()
           newfd = accept(s, (struct sockaddr *)&address, &nsize);
 
           //               if (verbose)
-          printf("connection accepted - fd %d\n", newfd);
+          //printf("connection accepted - fd %d\n", newfd);
           if (newfd < 0)
           {
             perror("accept");
           }
           else
           {
-            printf("setting TCP_NODELAY to 1\n");
+            //printf("setting TCP_NODELAY to 1\n");
             int flag = 1;
             int optResult = setsockopt(newfd,
                                        IPPROTO_TCP,
@@ -476,7 +474,7 @@ test_init(void *arg)
 
   /* init randomizer again (seed per thread) */
   srand((unsigned int)time(NULL));
-  printf("task %s,%d\n", __func__, __LINE__);
+  //printf("task %s,%d\n", __func__, __LINE__);
   /* init network interfaces */
   // test_netif_init();
 
@@ -492,9 +490,9 @@ test_init(void *arg)
   // apps_init();
 
 #if !NO_SYS
-  printf("task %s,%d\n", __func__, __LINE__);
+  //printf("task %s,%d\n", __func__, __LINE__);
   sys_sem_signal(init_sem);
-  printf("task %s,%d\n", __func__, __LINE__);
+  //printf("task %s,%d\n", __func__, __LINE__);
 #endif /* !NO_SYS */
 }
 
@@ -521,7 +519,7 @@ void usb_device_task(void *param)
 void hid_task(void *param)
 {
   (void)param;
-  printf("%s,%d\n", __func__, __LINE__);
+  //printf("%s,%d\n", __func__, __LINE__);
   err_t err;
   sys_sem_t init_sem;
   err = sys_sem_new(&init_sem, 0);
