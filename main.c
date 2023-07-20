@@ -33,6 +33,7 @@
 #include "lwip/timeouts.h"
 
 #include "bsp/board.h"
+#include "pico/stdlib.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -317,6 +318,7 @@ static void core1_entry()
 
 int main(void)
 {
+  set_sys_clock_khz(200000, true); 
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 1, &usb_device_taskdef);
   // xTaskCreate()
