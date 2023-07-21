@@ -318,7 +318,7 @@ static void core1_entry()
 
 int main(void)
 {
-  set_sys_clock_khz(200000, true); 
+  set_sys_clock_khz(190000, true); 
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 1, &usb_device_taskdef);
   // xTaskCreate()
@@ -445,6 +445,9 @@ int tcp_app_runloop()
   return 0;
 }
 char xvcInfo[] = "prottype build info getinfo command xvcServer_v1.0:2048\n";
+char ssid[32] = ""; // Global variable to store ssid
+char key[64] = "";  // Global variable to store key
+
 int handle_data(int fd, fd_set *conn) {
     char buffer[1024];
     ssize_t bytes_received, bytes_sent;
@@ -454,8 +457,46 @@ int handle_data(int fd, fd_set *conn) {
     if (bytes_received <= 0) {
         return 1; // Close the connection
     } else {
-        // Send back the received data (echo)
-        bytes_sent = send(fd, buffer, bytes_received, 0);
+        // Check if the received data is "getinfo"
+        if (strncmp(buffer, "getinfo", 7) == 0) {
+            // Copy the value of scan_results to the buffer
+            strcpy(buffer, scan_results);
+        } else if (strncmp(buffer, "setwifi", 7) == 0) {
+            // Extract ssid and key from the input buffer
+            char *ptr = buffer + 8; // Skip "setwifi "
+            int ssid_len = 0, key_len = 0;
+            while (*ptr != '\0') {
+                if (strncmp(ptr, "ssid:", 5) == 0) {
+                    ptr += 5; // Skip "ssid:"
+                    ssid_len = strcspn(ptr, " ");
+                    memcpy(ssid, ptr, ssid_len);
+                    ssid[ssid_len] = '\0'; // Ensure null-terminated string
+                    ptr += ssid_len; // Move past the ssid
+                } else if (strncmp(ptr, "key:", 4) == 0) {
+                    ptr += 4; // Skip "key:"
+                    key_len = strcspn(ptr, "\r\n");
+                    memcpy(key, ptr, key_len);
+                    key[key_len] = '\0'; // Ensure null-terminated string
+                    ptr += key_len; // Move past the key
+                } else {
+                    // Move to the next token if not ssid or key
+                    ptr += strcspn(ptr, " \r\n") + 1;
+                }
+            }
+        } else if (strncmp(buffer, "getcred", 7) == 0) {
+            // Prepare the response with ssid and key details
+            char response[100];
+            snprintf(response, sizeof(response), "ssid:%s key:%s", ssid, key);
+
+            // Send back the response to the client
+            bytes_sent = send(fd, response, strlen(response), 0);
+        }
+
+        // Send back the modified data (echo or scan_results)
+        bytes_sent = send(fd, buffer, strlen(buffer), 0);
+
+        // Clear the buffer after it is sent
+        memset(buffer, 0, sizeof(buffer));
     }
 
     return 0; // Continue the connection
