@@ -238,18 +238,17 @@ void tud_network_init_cb(void)
   }
 }
 #include "pico/cyw43_arch.h"
-#include "pico/cyw43_arch/arch_freertos.h"
 const char WIFI_SSID[] = "SSS_EXT";
 const char WIFI_PASSWORD[] = "1234567890";
 char scan_results[100];
 int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
     if (result) { 
-	//xSemaphoreTake(mutex, 10);
+	xSemaphoreTake(xMutex, portMAX_DELAY);
         sprintf(scan_results,"ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n",
             result->ssid, result->rssi, result->channel,
             result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5],
             result->auth_mode);
-    //xSemaphoreGive(mutex);
+	xSemaphoreGive(xMutex);
     }
     return 0;
 }
