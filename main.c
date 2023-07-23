@@ -318,7 +318,7 @@ static void core1_entry()
 
 int main(void)
 {
-  set_sys_clock_khz(190000, true); 
+  set_sys_clock_khz(200000, true); 
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 1, &usb_device_taskdef);
   // xTaskCreate()
@@ -461,6 +461,9 @@ int handle_data(int fd, fd_set *conn) {
         if (strncmp(buffer, "getinfo", 7) == 0) {
             // Copy the value of scan_results to the buffer
             strcpy(buffer, scan_results);
+			
+			// Send back the modified data (echo or scan_results)
+			bytes_sent = send(fd, buffer, strlen(buffer), 0);
         } else if (strncmp(buffer, "setwifi", 7) == 0) {
             // Extract ssid and key from the input buffer
             char *ptr = buffer + 8; // Skip "setwifi "
@@ -485,15 +488,12 @@ int handle_data(int fd, fd_set *conn) {
             }
         } else if (strncmp(buffer, "getcred", 7) == 0) {
             // Prepare the response with ssid and key details
-            char response[100];
-            snprintf(response, sizeof(response), "ssid:%s key:%s", ssid, key);
+            //char response[100];
+            snprintf(buffer, sizeof(buffer), "ssid:%s key:%s \r\n\0", ssid, key);
 
             // Send back the response to the client
-            bytes_sent = send(fd, response, strlen(response), 0);
+            bytes_sent = send(fd, buffer, strlen(buffer), 0);
         }
-
-        // Send back the modified data (echo or scan_results)
-        bytes_sent = send(fd, buffer, strlen(buffer), 0);
 
         // Clear the buffer after it is sent
         memset(buffer, 0, sizeof(buffer));
