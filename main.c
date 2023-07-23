@@ -433,7 +433,8 @@ int handle_data(int fd, fd_set *conn) {
         if (strncmp(buffer, "getinfo", 7) == 0) {
 			xSemaphoreTake(xMutex, portMAX_DELAY);
             // Copy the value of scan_results to the buffer
-            strcpy(buffer, scan_results);
+            memcpy(buffer, scan_results, strlen(scan_results));
+			buffer[strlen(scan_results)] = '\0';
 			xSemaphoreGive(xMutex);
 			
 			// Send back the modified data (echo or scan_results)
