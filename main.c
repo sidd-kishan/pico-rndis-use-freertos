@@ -275,41 +275,15 @@ void main_task(__unused void* params)
                     scan_in_progress = true;
                 } else {
                     //printf("Failed to start scan: %d\n", err);
-                    scan_time = make_timeout_time_ms(10000); // wait 10s and scan again
+                    scan_time = make_timeout_time_ms(5000); // wait 10s and scan again
                 }
             } else if (!cyw43_wifi_scan_active(&cyw43_state)) {
-                scan_time = make_timeout_time_ms(10000); // wait 10s and scan again
+                scan_time = make_timeout_time_ms(5000); // wait 10s and scan again
                 scan_in_progress = false; 
             }
         }
-        // the following #ifdef is only here so this same example can be used in multiple modes;
-        // you do not need it in your code
-#if PICO_CYW43_ARCH_POLL
-        // if you are using pico_cyw43_arch_poll, then you must poll periodically from your
-        // main loop (not from a timer) to check for Wi-Fi driver or lwIP work that needs to be done.
-        cyw43_arch_poll();
-        // you can poll as often as you like, however if you have nothing else to do you can
-        // choose to sleep until either a specified time, or cyw43_arch_poll() has work to do:
-        cyw43_arch_wait_for_work_until(scan_time);
-#else
-        // if you are not using pico_cyw43_arch_poll, then WiFI driver and lwIP work
-        // is done via interrupt in the background. This sleep is just an example of some (blocking)
-        // work you might be doing.
-        sleep_ms(1000);
-#endif
     }
-
     cyw43_arch_deinit();
-}
-
-static void core1_entry()
-{
-  //(void)xTaskCreate(main_task, "wifi_main",4 * configMINIMAL_STACK_SIZE, NULL, 1, &wifi_maindef);
-  #if !(TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3))
-  vTaskStartScheduler();
-  #endif
-  while (1)
-	tight_loop_contents();
 }
 //--------------------------------------------------------------------+
 // Main
@@ -320,17 +294,16 @@ int main(void)
   set_sys_clock_khz(200000, true); 
   xMutex = xSemaphoreCreateMutex();
   // Create a task for tinyusb device stack
-  (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 1, &usb_device_taskdef);
+  (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 2, &usb_device_taskdef);
   // xTaskCreate()
   //  Create HID task
-  (void)xTaskCreate(hid_task, "hid", HID_STACK_SZIE, NULL, 1, &hid_taskdef);
+  (void)xTaskCreate(hid_task, "hid", HID_STACK_SZIE, NULL, 2, &hid_taskdef);
   (void)xTaskCreate(main_task, "wifi_main",5 * configMINIMAL_STACK_SIZE, NULL, 1, &wifi_maindef);
   uxCoreAffinityMask = ( ( 1 << 1 ));
   vTaskCoreAffinitySet( wifi_maindef, uxCoreAffinityMask );
   #if !(TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3))
   vTaskStartScheduler();
   #endif
-  //multicore_launch_core1(core1_entry);
   return 0;
 }
 
@@ -444,7 +417,6 @@ int tcp_app_runloop()
 {
   return 0;
 }
-char xvcInfo[] = "prottype build info getinfo command xvcServer_v1.0:2048\n";
 char ssid[32] = ""; // Global variable to store ssid
 char key[64] = "";  // Global variable to store key
 

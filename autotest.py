@@ -40,6 +40,7 @@ def create_top_ten_dict(log):
 
 
 def netcat(host, port, content):
+    total_ap=0
     while True:
         time.sleep(0.1)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -51,6 +52,8 @@ def netcat(host, port, content):
             break
         s.close()
         top_ten_ssid_dict=create_top_ten_dict(data)
-        print(top_ten_ssid_dict)
+        if total_ap<len(top_ten_ssid_dict):
+            print(top_ten_ssid_dict)
+            total_ap=len(top_ten_ssid_dict)
 
 netcat("192.168.7.1", 2542, "getinfo\r\n")
