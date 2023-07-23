@@ -77,7 +77,7 @@ TaskHandle_t hid_taskdef;
 TaskHandle_t wifi_maindef;
 UBaseType_t uxCoreAffinityMask;
 typedef void(* tcpip_init_done_fn) (void *arg);
-
+SemaphoreHandle_t  xMutex;
 void usb_device_task(void *param);
 void hid_task(void *params);
 void main_task(void *params);
@@ -319,6 +319,7 @@ static void core1_entry()
 int main(void)
 {
   set_sys_clock_khz(200000, true); 
+  xMutex = xSemaphoreCreateMutex();
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 1, &usb_device_taskdef);
   // xTaskCreate()
@@ -459,8 +460,10 @@ int handle_data(int fd, fd_set *conn) {
     } else {
         // Check if the received data is "getinfo"
         if (strncmp(buffer, "getinfo", 7) == 0) {
+			xSemaphoreTake(xMutex, portMAX_DELAY);
             // Copy the value of scan_results to the buffer
             strcpy(buffer, scan_results);
+			xSemaphoreGive(xMutex);
 			
 			// Send back the modified data (echo or scan_results)
 			bytes_sent = send(fd, buffer, strlen(buffer), 0);
