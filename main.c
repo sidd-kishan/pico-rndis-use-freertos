@@ -77,7 +77,7 @@ TaskHandle_t hid_taskdef;
 TaskHandle_t wifi_maindef;
 UBaseType_t uxCoreAffinityMask;
 typedef void(* tcpip_init_done_fn) (void *arg);
-SemaphoreHandle_t  xMutex;
+SemaphoreHandle_t  wifi_scan_info_mutex;
 void usb_device_task(void *param);
 void hid_task(void *params);
 void main_task(void *params);
@@ -243,12 +243,12 @@ const char WIFI_PASSWORD[] = "1234567890";
 char scan_results[100];
 int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
     if (result) { 
-	xSemaphoreTake(xMutex, portMAX_DELAY);
+	xSemaphoreTake(wifi_scan_info_mutex, portMAX_DELAY);
         sprintf(scan_results,"ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n",
             result->ssid, result->rssi, result->channel,
             result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5],
             result->auth_mode);
-	xSemaphoreGive(xMutex);
+	xSemaphoreGive(wifi_scan_info_mutex);
     }
     return 0;
 }
@@ -292,7 +292,7 @@ void main_task(__unused void* params)
 int main(void)
 {
   set_sys_clock_khz(200000, true); 
-  xMutex = xSemaphoreCreateMutex();
+  wifi_scan_info_mutex = xSemaphoreCreateMutex();
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 2, &usb_device_taskdef);
   // xTaskCreate()
@@ -431,11 +431,11 @@ int handle_data(int fd, fd_set *conn) {
     } else {
         // Check if the received data is "getinfo"
         if (strncmp(buffer, "getinfo", 7) == 0) {
-			xSemaphoreTake(xMutex, portMAX_DELAY);
+			xSemaphoreTake(wifi_scan_info_mutex, portMAX_DELAY);
             // Copy the value of scan_results to the buffer
             memcpy(buffer, scan_results, strlen(scan_results));
 			buffer[strlen(scan_results)] = '\0';
-			xSemaphoreGive(xMutex);
+			xSemaphoreGive(wifi_scan_info_mutex);
 			
 			// Send back the modified data (echo or scan_results)
 			bytes_sent = send(fd, buffer, strlen(buffer), 0);
