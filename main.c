@@ -78,6 +78,8 @@ TaskHandle_t wifi_maindef;
 UBaseType_t uxCoreAffinityMask;
 typedef void(* tcpip_init_done_fn) (void *arg);
 SemaphoreHandle_t  wifi_scan_info_mutex;
+SemaphoreHandle_t  wifi_connection_set;
+bool wifi_scanning_switched_on = true;
 void usb_device_task(void *param);
 void hid_task(void *params);
 void main_task(void *params);
@@ -238,8 +240,8 @@ void tud_network_init_cb(void)
   }
 }
 #include "pico/cyw43_arch.h"
-const char WIFI_SSID[] = "SSS_EXT";
-const char WIFI_PASSWORD[] = "1234567890";
+char ssid[32] = ""; // Global variable to store ssid
+char key[64] = "";  // Global variable to store key
 char scan_results[100];
 int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
     if (result) { 
@@ -263,26 +265,45 @@ void main_task(__unused void* params)
     }
 	tcp_app();*/
     // Infinite loop
-    absolute_time_t scan_time = nil_time;
-    bool scan_in_progress = false;
-    while(true) {
-        if (absolute_time_diff_us(get_absolute_time(), scan_time) < 0) {
-            if (!scan_in_progress) {
-                cyw43_wifi_scan_options_t scan_options = {0};
-                int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
-                if (err == 0) {
-                    //printf("\nPerforming wifi scan\n");
-                    scan_in_progress = true;
-                } else {
-                    //printf("Failed to start scan: %d\n", err);
-                    scan_time = make_timeout_time_ms(5000); // wait 10s and scan again
-                }
-            } else if (!cyw43_wifi_scan_active(&cyw43_state)) {
-                scan_time = make_timeout_time_ms(5000); // wait 10s and scan again
-                scan_in_progress = false; 
-            }
-        }
-    }
+	while(1){
+		xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
+		xSemaphoreGive(wifi_connection_set);
+		absolute_time_t scan_time = nil_time;
+		bool scan_in_progress = false;
+		while(wifi_scanning_switched_on) {
+			if (absolute_time_diff_us(get_absolute_time(), scan_time) < 0) {
+				if (!scan_in_progress) {
+					cyw43_wifi_scan_options_t scan_options = {0};
+					int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
+					if (err == 0) {
+						//printf("\nPerforming wifi scan\n");
+						scan_in_progress = true;
+					} else {
+						//printf("Failed to start scan: %d\n", err);
+						scan_time = make_timeout_time_ms(5000); // wait 10s and scan again
+					}
+				} else if (!cyw43_wifi_scan_active(&cyw43_state)) {
+					scan_time = make_timeout_time_ms(5000); // wait 10s and scan again
+					scan_in_progress = false; 
+				}
+			}
+		}
+		cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
+		if(cyw43_arch_wifi_connect_timeout_ms(ssid, key, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+			//printf("failed to connect.\n");
+			//return 1;
+		}
+		for (;;) {}
+//		else {
+			//printf("Connected.\n");
+
+			//extern cyw43_t cyw43_state;
+			//auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
+			//printf("IP Address: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
+//		}
+		// turn on LED to signal connected
+		//cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+	}
     cyw43_arch_deinit();
 }
 //--------------------------------------------------------------------+
@@ -293,6 +314,7 @@ int main(void)
 {
   set_sys_clock_khz(200000, true); 
   wifi_scan_info_mutex = xSemaphoreCreateMutex();
+  wifi_connection_set = xSemaphoreCreateMutex();
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 2, &usb_device_taskdef);
   // xTaskCreate()
@@ -417,8 +439,6 @@ int tcp_app_runloop()
 {
   return 0;
 }
-char ssid[32] = ""; // Global variable to store ssid
-char key[64] = "";  // Global variable to store key
 
 int handle_data(int fd, fd_set *conn) {
     char buffer[1024];
@@ -448,19 +468,22 @@ int handle_data(int fd, fd_set *conn) {
                     ptr += 5; // Skip "ssid:"
                     ssid_len = strcspn(ptr, " ");
                     memcpy(ssid, ptr, ssid_len);
-                    ssid[ssid_len] = '\0'; // Ensure null-terminated string
+                    //ssid[ssid_len] = '\0'; // Ensure null-terminated string
                     ptr += ssid_len; // Move past the ssid
                 } else if (strncmp(ptr, "key:", 4) == 0) {
                     ptr += 4; // Skip "key:"
                     key_len = strcspn(ptr, "\r\n");
                     memcpy(key, ptr, key_len);
-                    key[key_len] = '\0'; // Ensure null-terminated string
+                    //key[key_len] = '\0'; // Ensure null-terminated string
                     ptr += key_len; // Move past the key
                 } else {
                     // Move to the next token if not ssid or key
                     ptr += strcspn(ptr, " \r\n") + 1;
                 }
             }
+			xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
+			wifi_scanning_switched_on=false;
+			xSemaphoreGive(wifi_connection_set);
         } else if (strncmp(buffer, "getcred", 7) == 0) {
             // Prepare the response with ssid and key details
             //char response[100];
