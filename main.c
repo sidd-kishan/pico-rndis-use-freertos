@@ -266,11 +266,15 @@ void main_task(__unused void* params)
 	tcp_app();*/
     // Infinite loop
 	while(1){
-		xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
-		xSemaphoreGive(wifi_connection_set);
 		absolute_time_t scan_time = nil_time;
 		bool scan_in_progress = false;
-		while(wifi_scanning_switched_on) {
+		while(1) {
+			xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
+			xSemaphoreGive(wifi_connection_set);
+			if(!wifi_scanning_switched_on){
+				cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+				break;
+			}
 			if (absolute_time_diff_us(get_absolute_time(), scan_time) < 0) {
 				if (!scan_in_progress) {
 					cyw43_wifi_scan_options_t scan_options = {0};
@@ -293,7 +297,14 @@ void main_task(__unused void* params)
 			//printf("failed to connect.\n");
 			//return 1;
 		}
-		for (;;) {}
+		for (;;) {
+			xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
+			xSemaphoreGive(wifi_connection_set);
+			if(wifi_scanning_switched_on){
+				cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+				break;
+			}
+		}
 //		else {
 			//printf("Connected.\n");
 
@@ -491,6 +502,10 @@ int handle_data(int fd, fd_set *conn) {
 
             // Send back the response to the client
             bytes_sent = send(fd, buffer, strlen(buffer), 0);
+        } else if (strncmp(buffer, "diswifi", 7) == 0) {
+            xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
+			wifi_scanning_switched_on=true;
+			xSemaphoreGive(wifi_connection_set);
         }
 
         // Clear the buffer after it is sent
