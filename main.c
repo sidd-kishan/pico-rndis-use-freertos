@@ -305,6 +305,7 @@ void main_task(__unused void* params)
 				break;
 			}
 		}
+		cyw43_wifi_leave(&cyw43_state,CYW43_ITF_STA);
 //		else {
 			//printf("Connected.\n");
 
