@@ -12,7 +12,7 @@ Use rndis in tinyusb and use freerots to create usb-related tasks.You can also u
             Raspberry pi (Windows on ARM)                                                         Client
 ```
 ## Installation
-It requires a version of the `pico-sdk`.
+It requires a patched version of the `pico-sdk`.
 
 ```bash
 $ apt install git build-essential cmake gcc-arm-none-eabi doxygen libstdc++-arm-none-eabi-newlib iperf liblwip-dev unzip ninja-build
@@ -35,7 +35,7 @@ $ setwifi ssid:SSS_EXT key:1234567890
 $ getcred
 $ diswifi
 ```
-![image](https://github.com/sidd-kishan/pico-rndis-use-freertos/assets/1007208/02351352-8e1d-4211-9bd5-a393dc6c9fe0)
+![image](https://github.com/sidd-kishan/pico-rndis-use-freertos/assets/1007208/c21e79fa-1ccf-4a30-a4f2-ac1f6df0e06b)
 
 
 ### License
