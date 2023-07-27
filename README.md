@@ -29,6 +29,11 @@ $ mkdir build
 $ cd build
 $ PICO_SDK_PATH=../pico-sdk cmake ..
 $ make -j$(nproc --all)
+$ netcat 192.168.7.1 2542 -v
+$ getinfo
+$ setwifi ssid:SSS_EXT key:1234567890
+$ getcred
+$ diswifi
 ```
 ![image](https://github.com/sidd-kishan/pico-rndis-use-freertos/assets/1007208/02351352-8e1d-4211-9bd5-a393dc6c9fe0)
 
