@@ -67,7 +67,7 @@ else()
         pico_lwip_contrib_freertos
         tinyusb_device 
         tinyusb_board  
-		pico_cyw43_arch_lwip_sys_freertos
+		pico_cyw43_arch_none
         )
         pico_add_extra_outputs(test)
 endif()

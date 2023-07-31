@@ -79,6 +79,7 @@ UBaseType_t uxCoreAffinityMask;
 typedef void(* tcpip_init_done_fn) (void *arg);
 SemaphoreHandle_t  wifi_scan_info_mutex;
 SemaphoreHandle_t  wifi_connection_set;
+volatile absolute_time_t next_wifi_try;
 bool wifi_scanning_switched_on = true;
 void usb_device_task(void *param);
 void hid_task(void *params);
@@ -293,7 +294,8 @@ void main_task(__unused void* params)
 			}
 		}
 		cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
-		if(cyw43_arch_wifi_connect_timeout_ms(ssid, key, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+		if(cyw43_arch_wifi_connect_async(ssid, key, CYW43_AUTH_WPA2_AES_PSK)) {
+			next_wifi_try = make_timeout_time_ms(10000);
 			//printf("failed to connect.\n");
 			//return 1;
 		}
