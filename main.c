@@ -196,6 +196,33 @@ static err_t output_fn(struct netif *netif, struct pbuf *p, const ip_addr_t *add
   return etharp_output(netif, p, addr);
 }
 
+void usb_rx(void)
+{
+    static pkt_s out_pkt;
+    static int pktoffs = -1;
+
+    if (tud_vendor_available()) {
+
+        if (pktoffs < 0) { // no on-going packet
+            tud_vendor_read(&out_pkt, offsetof(pkt_s, payload)); // read header
+            if ((out_pkt.magic == MAGIC) && (out_pkt.len <= MTU)) { // valid packet
+                pktoffs = tud_vendor_read(out_pkt.payload, out_pkt.len);
+            } else {
+                //DEBUG(("Invalid packet: magic = %x, len = %d\n", out_pkt.magic, out_pkt.len));
+            }
+        } else { // pkt_ongoing
+            pktoffs += tud_vendor_read(&out_pkt.payload[pktoffs], out_pkt.len - pktoffs);
+        }
+
+        if (pktoffs >= out_pkt.len) { // completed packet
+            if (!queue_try_add(&qoutbound, &out_pkt)) {
+                //DEBUG(("UQueue full\n"));
+            }
+            pktoffs = -1;
+        }
+    }
+
+}
 
 static err_t netif_init_cb(struct netif *netif)
 {
@@ -272,6 +299,7 @@ void service_traffic(void)
   if (received_frame)
   {
     ethernet_input(received_frame, &netif_data);
+	usb_rx();
     pbuf_free(received_frame);
     received_frame = NULL;
     tud_network_recv_renew();
@@ -635,6 +663,7 @@ test_init(void *arg)
 void usb_device_task(void *param)
 {
   (void)param;
+  static pkt_s temp_pkt;
 
   // This should be called after scheduler/kernel is started.
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
@@ -646,6 +675,23 @@ void usb_device_task(void *param)
     // tinyusb device task
     tud_task();
     service_traffic();
+	while (queue_try_peek(&qinbound, &temp_pkt)) {
+		/*
+		DEBUG(("Recv pkt: len = %d, src = ", temp_pkt.len));
+		for (int k=6;k<12;k++) {
+			DEBUG(("%02X:", temp_pkt.payload[k]));
+		}
+		DEBUG(("\n"));
+		*/
+
+
+		if (tud_vendor_write_available() >= (temp_pkt.len + offsetof(pkt_s, payload))) {
+			queue_remove_blocking(&qinbound, &temp_pkt);
+			tud_vendor_write(&temp_pkt, temp_pkt.len + offsetof(pkt_s, payload));
+		} else {
+			break;
+		}
+	}
   }
 }
 
