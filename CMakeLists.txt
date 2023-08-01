@@ -56,7 +56,7 @@ else()
         ${TOP}/lib/tinyusb/lib/networking/dhserver.c
         ${TOP}/lib/tinyusb/lib/networking/dnserver.c
         ${TOP}/lib/tinyusb/lib/networking/rndis_reports.c
-		${TOP}/src/rp2_common/pico_cyw43_arch/cyw43_arch_freertos.c
+		${TOP}/src/rp2_common/pico_cyw43_arch/cyw43_arch.c
         )
     target_link_libraries(test PUBLIC 
         pico_stdlib 

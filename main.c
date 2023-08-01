@@ -40,6 +40,8 @@
 #include "lwip/netif.h"
 #include "lwip/ip4_addr.h"
 #include "lwip/apps/lwiperf.h"
+#include "pico/util/queue.h"
+#include "pico/cyw43_arch.h"
 //#include "pico/multicore.h"
 #if TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3)
 // ESP-IDF need "freertos/" prefix in include path.
@@ -79,7 +81,29 @@ UBaseType_t uxCoreAffinityMask;
 typedef void(* tcpip_init_done_fn) (void *arg);
 SemaphoreHandle_t  wifi_scan_info_mutex;
 SemaphoreHandle_t  wifi_connection_set;
-volatile absolute_time_t next_wifi_try;
+#define WLC_GET_RATE                       ( (uint32_t)12 )
+#define WLC_GET_RSSI                       ( (uint32_t)127 )
+
+static volatile bool link_up = false;
+static int32_t wifi_status;
+static int32_t wifi_rssi, wifi_rate;
+static uint8_t macaddr[6];
+
+static absolute_time_t next_wifi_status = (absolute_time_t)0;
+static volatile absolute_time_t next_wifi_try;
+#define QSIZE 16
+static queue_t qinbound; /* eth -> usb */
+static queue_t qoutbound; /* usb -> eth */
+
+#define MTU 1600
+#define MAGIC 0xAA55AA55ul
+
+typedef struct {
+    uint32_t magic;
+    size_t len;
+    uint8_t payload[MTU];
+} pkt_s;
+
 bool wifi_scanning_switched_on = true;
 void usb_device_task(void *param);
 void hid_task(void *params);
@@ -102,6 +126,31 @@ static const ip_addr_t ipaddr = IPADDR4_INIT_BYTES(192, 168, 7, 1);
 static const ip_addr_t netmask = IPADDR4_INIT_BYTES(255, 255, 255, 0);
 static const ip_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
 
+void cyw43_cb_tcpip_set_link_up(cyw43_t *self, int itf) {
+    link_up = true;
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, link_up);
+}
+
+void cyw43_cb_tcpip_set_link_down(cyw43_t *self, int itf) {
+    link_up = false;
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, link_up);
+}
+
+void cyw43_cb_process_ethernet(void *cb_data, int itf, size_t len, const uint8_t *buf) {
+    pkt_s in_pkt;
+
+    if (len <= MTU) {
+        in_pkt.magic = MAGIC;
+        in_pkt.len = len;
+        memcpy(in_pkt.payload, buf, len);
+
+        if (!queue_try_add(&qinbound, &in_pkt)) {
+            //DEBUG(("EQueue full\n"));
+        }
+    } else {
+        //DEBUG(("Oversized pkt = %d\n", len));
+    }
+}
 /* database IP addresses that can be offered to the host; this must be in RAM to store assigned MAC addresses */
 static dhcp_entry_t entries[] =
     {
@@ -240,7 +289,7 @@ void tud_network_init_cb(void)
     received_frame = NULL;
   }
 }
-#include "pico/cyw43_arch.h"
+
 char ssid[32] = ""; // Global variable to store ssid
 char key[64] = "";  // Global variable to store key
 char scan_results[100];
@@ -257,6 +306,7 @@ int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
 }
 void main_task(__unused void* params)
 {
+	pkt_s temp_pkt;
     cyw43_arch_init();
     cyw43_arch_enable_sta_mode();
 
@@ -294,11 +344,6 @@ void main_task(__unused void* params)
 			}
 		}
 		cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
-		if(cyw43_arch_wifi_connect_async(ssid, key, CYW43_AUTH_WPA2_AES_PSK)) {
-			next_wifi_try = make_timeout_time_ms(10000);
-			//printf("failed to connect.\n");
-			//return 1;
-		}
 		for (;;) {
 			xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
 			xSemaphoreGive(wifi_connection_set);
@@ -306,6 +351,34 @@ void main_task(__unused void* params)
 				cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 				break;
 			}
+			if (!link_up) {
+				if (absolute_time_diff_us(get_absolute_time(), next_wifi_try) < 0) {
+					//DEBUG(("Retrying wifi connection %s/%s/%lx\n", wifi_ssid, wifi_passwd, wifi_auth));
+					cyw43_arch_wifi_connect_async(ssid, key, CYW43_AUTH_WPA2_AES_PSK);
+					next_wifi_try = make_timeout_time_ms(10000);
+				}
+			}
+
+			if (absolute_time_diff_us(get_absolute_time(), next_wifi_status) < 0) {
+				wifi_status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
+				cyw43_ioctl(&cyw43_state, (uint32_t)WLC_GET_RSSI<<1, sizeof(wifi_rssi), (uint8_t*)&wifi_rssi, CYW43_ITF_STA);
+				cyw43_ioctl(&cyw43_state, (uint32_t)WLC_GET_RATE<<1, sizeof(wifi_rate), (uint8_t*)&wifi_rate, CYW43_ITF_STA);
+				next_wifi_status = make_timeout_time_ms(500);
+			}
+
+			if (queue_try_remove(&qoutbound, &temp_pkt)) {
+
+/*
+				DEBUG(("Send pkt: len = %d, src = ", temp_pkt.len));
+				for (int k=6;k<12;k++) {
+					DEBUG(("%02X:", temp_pkt.payload[k]));
+				}
+				DEBUG(("\n"));
+*/
+				if (link_up)
+					cyw43_send_ethernet(&cyw43_state, CYW43_ITF_STA, temp_pkt.len, temp_pkt.payload, false);
+			}
+        //cyw43_poll(); // for max. speed poll and don't wait for background timer
 		}
 		cyw43_wifi_leave(&cyw43_state,CYW43_ITF_STA);
 //		else {
@@ -329,6 +402,8 @@ int main(void)
   set_sys_clock_khz(200000, true); 
   wifi_scan_info_mutex = xSemaphoreCreateMutex();
   wifi_connection_set = xSemaphoreCreateMutex();
+  queue_init(&qinbound, sizeof(pkt_s), QSIZE);
+  queue_init(&qoutbound, sizeof(pkt_s), QSIZE);
   // Create a task for tinyusb device stack
   (void)xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, 2, &usb_device_taskdef);
   // xTaskCreate()
