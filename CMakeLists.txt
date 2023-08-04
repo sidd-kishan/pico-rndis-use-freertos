@@ -56,7 +56,7 @@ else()
         ${TOP}/lib/tinyusb/lib/networking/dhserver.c
         ${TOP}/lib/tinyusb/lib/networking/dnserver.c
         ${TOP}/lib/tinyusb/lib/networking/rndis_reports.c
-		${TOP}/src/rp2_common/pico_cyw43_arch/cyw43_arch.c
+		${TOP}/src/rp2_common/pico_cyw43_arch/cyw43_arch_freertos.c
         )
     target_link_libraries(test PUBLIC 
         pico_stdlib 
@@ -67,7 +67,7 @@ else()
         pico_lwip_contrib_freertos
         tinyusb_device 
         tinyusb_board  
-		pico_cyw43_arch_none
+		pico_cyw43_arch_lwip_sys_freertos
         )
         pico_add_extra_outputs(test)
 endif()

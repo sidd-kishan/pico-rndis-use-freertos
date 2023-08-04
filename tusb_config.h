@@ -100,11 +100,6 @@
 // Only one of the drivers can be enabled
 #define CFG_TUD_ECM_RNDIS     1
 #define CFG_TUD_NCM           (1-CFG_TUD_ECM_RNDIS)
-#define CFG_TUD_VENDOR          1
-
-#define CFG_TUD_VENDOR_EPSIZE      64
-#define CFG_TUD_VENDOR_RX_BUFSIZE  64
-#define CFG_TUD_VENDOR_TX_BUFSIZE  64
 
 #ifdef __cplusplus
  }
