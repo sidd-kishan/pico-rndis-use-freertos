@@ -32,6 +32,9 @@
 #include "lwip/init.h"
 #include "lwip/timeouts.h"
 
+#include "lwip/pbuf.h"
+#include "lwip/udp.h"
+
 #include "bsp/board.h"
 #include "pico/stdlib.h"
 #include "tusb.h"
@@ -240,6 +243,56 @@ void tud_network_init_cb(void)
   }
 }
 #include "pico/cyw43_arch.h"
+
+#define UDP_PORT 4444
+#define BEACON_MSG_LEN_MAX 127
+#define BEACON_TARGET "255.255.255.255"
+#define BEACON_INTERVAL_MS 1000
+
+void run_udp_beacon() {
+    struct udp_pcb* pcb = udp_new();
+
+    ip_addr_t addr;
+    ipaddr_aton(BEACON_TARGET, &addr);
+
+    int counter = 0;
+    while (true) {
+		xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
+		xSemaphoreGive(wifi_connection_set);
+		if(wifi_scanning_switched_on){
+			cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+			break;
+		}
+        struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, BEACON_MSG_LEN_MAX+1, PBUF_RAM);
+        char *req = (char *)p->payload;
+        memset(req, 0, BEACON_MSG_LEN_MAX+1);
+        snprintf(req, BEACON_MSG_LEN_MAX, "%d\n", counter);
+        err_t er = udp_sendto(pcb, p, &addr, UDP_PORT);
+        pbuf_free(p);
+        if (er != ERR_OK) {
+            //printf("Failed to send UDP packet! error=%d", er);
+        } else {
+            //printf("Sent packet %d\n", counter);
+            counter++;
+        }
+
+        // Note in practice for this simple UDP transmitter,
+        // the end result for both background and poll is the same
+
+		#if PICO_CYW43_ARCH_POLL
+        // if you are using pico_cyw43_arch_poll, then you must poll periodically from your
+        // main loop (not from a timer) to check for Wi-Fi driver or lwIP work that needs to be done.
+        cyw43_arch_poll();
+        sleep_ms(BEACON_INTERVAL_MS);
+		#else
+        // if you are not using pico_cyw43_arch_poll, then WiFI driver and lwIP work
+        // is done via interrupt in the background. This sleep is just an example of some (blocking)
+        // work you might be doing.
+        sleep_ms(BEACON_INTERVAL_MS);
+		#endif
+    }
+}
+
 char ssid[32] = ""; // Global variable to store ssid
 char key[64] = "";  // Global variable to store key
 char scan_results[100];
@@ -293,18 +346,13 @@ void main_task(__unused void* params)
 			}
 		}
 		cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
-		if(cyw43_arch_wifi_connect_timeout_ms(ssid, key, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+		if(cyw43_arch_wifi_connect_timeout_ms(ssid, key, CYW43_AUTH_WPA2_AES_PSK, 10000)) {
 			//printf("failed to connect.\n");
 			//return 1;
 		}
-		for (;;) {
-			xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
-			xSemaphoreGive(wifi_connection_set);
-			if(wifi_scanning_switched_on){
-				cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-				break;
-			}
-		}
+		run_udp_beacon();
+		//for (;;) {
+		//}
 		cyw43_wifi_leave(&cyw43_state,CYW43_ITF_STA);
 //		else {
 			//printf("Connected.\n");
