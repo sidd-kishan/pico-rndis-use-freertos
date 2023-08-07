@@ -398,6 +398,42 @@ void app_main(void)
 #include <fcntl.h>
 #include <sys/types.h>
 #include "lwip/sockets.h"
+#include "lwip/udp.h"
+#include "lwip/debug.h"
+
+
+void udp_echo_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_addr_t *addr, u16_t port)
+{
+    if (p != NULL) {
+        /* send received packet back to sender */
+        udp_sendto(pcb, p, addr, port);
+        /* free the pbuf */
+        pbuf_free(p);
+    }
+}
+
+
+void udp_echo_init(void)
+{
+    struct udp_pcb * pcb;
+
+    /* get new pcb */
+    pcb = udp_new();
+    if (pcb == NULL) {
+        LWIP_DEBUGF(UDP_DEBUG, ("udp_new failed!\n"));
+        return;
+    }
+
+    /* bind to any IP address on port 7 */
+    if (udp_bind(pcb, INADDR_ANY, 2542) != ERR_OK) {
+        LWIP_DEBUGF(UDP_DEBUG, ("udp_bind failed!\n"));
+        return;
+    }
+
+    /* set udp_echo_recv() as callback function
+       for received packets */
+    udp_recv(pcb, udp_echo_recv, NULL);
+}
 int tcp_app()
 {
   int i;
@@ -642,7 +678,8 @@ void hid_task(void *param)
     ;
   // Initialise web server
   //httpd_init();
-  tcp_app();
+  //tcp_app();
+  udp_echo_init();
   // Configure SSI and CGI handler
   //ssi_init(); 
   //cgi_init();
