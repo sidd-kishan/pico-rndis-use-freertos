@@ -401,17 +401,38 @@ void app_main(void)
 #include "lwip/udp.h"
 #include "lwip/debug.h"
 
-
-void udp_echo_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_addr_t *addr, u16_t port)
+void recv_callback_udp(void *arg,
+                      struct udp_pcb *upcb,
+                      struct pbuf *c,
+                      struct ip_addr *addr,
+                      u16_t port)
 {
-    if (p != NULL) {
-        /* send received packet back to sender */
-        udp_sendto(pcb, p, addr, port);
-        /* free the pbuf */
-        pbuf_free(p);
+    static const char errormsg[] = "sample test msg\n";
+
+    char *command = (char *)(c->payload);
+    char *resp = NULL;
+    uint16_t resp_len = 0;
+
+    if (((command[0] >= 'a' && command[0] <= 'z') ||
+         (command[0] >= 'A' && command[0] <= 'Z')) &&
+        (command[(c->len) - 1] == '\n'))
+    {
+        resp = errormsg;
+        resp_len = sizeof(errormsg) - 1;
+    }
+
+    pbuf_free(c);
+
+    if (resp != NULL) {
+        struct pbuf *r = pbuf_alloc(PBUF_TRANSPORT, resp_len, PBUF_REF);
+        if (r != NULL) {
+            r->payload = resp;
+            r->len = resp_len;
+            err_t err = udp_sendto(upcb, r, addr, port);
+            pbuf_free(r);
+        }
     }
 }
-
 
 void udp_echo_init(void)
 {
@@ -432,7 +453,7 @@ void udp_echo_init(void)
 
     /* set udp_echo_recv() as callback function
        for received packets */
-    udp_recv(pcb, udp_echo_recv, NULL);
+    udp_recv(pcb, recv_callback_udp, NULL);
 }
 int tcp_app()
 {
