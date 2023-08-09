@@ -43,6 +43,7 @@
 #include "lwip/netif.h"
 #include "lwip/ip4_addr.h"
 #include "lwip/apps/lwiperf.h"
+#include "pico/util/queue.h"
 //#include "pico/multicore.h"
 #if TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3)
 // ESP-IDF need "freertos/" prefix in include path.
@@ -79,6 +80,10 @@ TaskHandle_t usb_device_taskdef;
 TaskHandle_t hid_taskdef;
 TaskHandle_t wifi_maindef;
 UBaseType_t uxCoreAffinityMask;
+
+#define QSIZE 16
+static queue_t qinbound;
+
 typedef void(* tcpip_init_done_fn) (void *arg);
 SemaphoreHandle_t  wifi_scan_info_mutex;
 SemaphoreHandle_t  wifi_connection_set;
@@ -295,15 +300,19 @@ void run_udp_beacon() {
 
 char ssid[32] = ""; // Global variable to store ssid
 char key[64] = "";  // Global variable to store key
-char scan_results[100];
+char scan_results[93];
 int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+	char result_buf[93];
     if (result) { 
-	xSemaphoreTake(wifi_scan_info_mutex, portMAX_DELAY);
-        sprintf(scan_results,"ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n",
+	//xSemaphoreTake(wifi_scan_info_mutex, portMAX_DELAY);
+        sprintf(result_buf,"ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n",
             result->ssid, result->rssi, result->channel,
             result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5],
             result->auth_mode);
-	xSemaphoreGive(wifi_scan_info_mutex);
+			if (!queue_try_add(&qinbound, result_buf)) {
+            //DEBUG(("EQueue full\n"));
+        }
+	//xSemaphoreGive(wifi_scan_info_mutex);
     }
     return 0;
 }
@@ -311,6 +320,7 @@ void main_task(__unused void* params)
 {
     cyw43_arch_init();
     cyw43_arch_enable_sta_mode();
+	cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
 
     // Connect to the WiFI network - loop until connected
     /*while(cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000) != 0){
@@ -323,11 +333,11 @@ void main_task(__unused void* params)
 		bool scan_in_progress = false;
 		while(1) {
 			xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
-			xSemaphoreGive(wifi_connection_set);
 			if(!wifi_scanning_switched_on){
 				cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 				break;
 			}
+			xSemaphoreGive(wifi_connection_set);
 			if (absolute_time_diff_us(get_absolute_time(), scan_time) < 0) {
 				if (!scan_in_progress) {
 					cyw43_wifi_scan_options_t scan_options = {0};
@@ -345,7 +355,6 @@ void main_task(__unused void* params)
 				}
 			}
 		}
-		cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
 		if(cyw43_arch_wifi_connect_timeout_ms(ssid, key, CYW43_AUTH_WPA2_AES_PSK, 10000)) {
 			//printf("failed to connect.\n");
 			//return 1;
@@ -373,6 +382,7 @@ void main_task(__unused void* params)
 int main(void)
 {
   set_sys_clock_khz(200000, true); 
+  queue_init(&qinbound, sizeof(scan_results), QSIZE);
   wifi_scan_info_mutex = xSemaphoreCreateMutex();
   wifi_connection_set = xSemaphoreCreateMutex();
   // Create a task for tinyusb device stack
@@ -412,13 +422,14 @@ void recv_callback_udp(void *arg,
     char *command = (char *)(c->payload);
     char *resp = NULL;
     uint16_t resp_len = 0;
+	if(queue_try_peek(&qinbound, scan_results))queue_remove_blocking(&qinbound, scan_results);
 
     if (((command[0] >= 'a' && command[0] <= 'z') ||
          (command[0] >= 'A' && command[0] <= 'Z')) &&
         (command[(c->len) - 1] == '\n'))
     {
-        resp = errormsg;
-        resp_len = sizeof(errormsg) - 1;
+        resp = scan_results;
+        resp_len = sizeof(scan_results) - 1;
     }
 
     pbuf_free(c);
@@ -441,13 +452,13 @@ void udp_echo_init(void)
     /* get new pcb */
     pcb = udp_new();
     if (pcb == NULL) {
-        LWIP_DEBUGF(UDP_DEBUG, ("udp_new failed!\n"));
+        //LWIP_DEBUGF(UDP_DEBUG, ("udp_new failed!\n"));
         return;
     }
 
     /* bind to any IP address on port 7 */
     if (udp_bind(pcb, INADDR_ANY, 2542) != ERR_OK) {
-        LWIP_DEBUGF(UDP_DEBUG, ("udp_bind failed!\n"));
+        //LWIP_DEBUGF(UDP_DEBUG, ("udp_bind failed!\n"));
         return;
     }
 
@@ -457,6 +468,7 @@ void udp_echo_init(void)
 }
 int tcp_app()
 {
+  udp_echo_init();
   int i;
   int s;
   int c;
@@ -568,11 +580,12 @@ int handle_data(int fd, fd_set *conn) {
     } else {
         // Check if the received data is "getinfo"
         if (strncmp(buffer, "getinfo", 7) == 0) {
-			xSemaphoreTake(wifi_scan_info_mutex, portMAX_DELAY);
+			//xSemaphoreTake(wifi_scan_info_mutex, portMAX_DELAY);
             // Copy the value of scan_results to the buffer
+			if(queue_try_peek(&qinbound, scan_results))queue_remove_blocking(&qinbound, scan_results);
             memcpy(buffer, scan_results, strlen(scan_results));
 			buffer[strlen(scan_results)] = '\0';
-			xSemaphoreGive(wifi_scan_info_mutex);
+			//xSemaphoreGive(wifi_scan_info_mutex);
 			
 			// Send back the modified data (echo or scan_results)
 			bytes_sent = send(fd, buffer, strlen(buffer), 0);
@@ -699,8 +712,8 @@ void hid_task(void *param)
     ;
   // Initialise web server
   //httpd_init();
-  //tcp_app();
-  udp_echo_init();
+  tcp_app();
+  //udp_echo_init();
   // Configure SSI and CGI handler
   //ssi_init(); 
   //cgi_init();

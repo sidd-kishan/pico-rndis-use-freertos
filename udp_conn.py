@@ -3,7 +3,7 @@ import time
 
 UDP_IP = "192.168.7.1"
 UDP_PORT = 2542
-MESSAGE = b"Hello, World!"
+MESSAGE = b"getinfo\n"
 
 print("UDP target IP: %s" % UDP_IP)
 print("UDP target port: %s" % UDP_PORT)
