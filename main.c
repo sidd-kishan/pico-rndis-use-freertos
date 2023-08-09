@@ -333,11 +333,11 @@ void main_task(__unused void* params)
 		bool scan_in_progress = false;
 		while(1) {
 			xSemaphoreTake(wifi_connection_set, portMAX_DELAY);
+			xSemaphoreGive(wifi_connection_set);
 			if(!wifi_scanning_switched_on){
 				cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 				break;
 			}
-			xSemaphoreGive(wifi_connection_set);
 			if (absolute_time_diff_us(get_absolute_time(), scan_time) < 0) {
 				if (!scan_in_progress) {
 					cyw43_wifi_scan_options_t scan_options = {0};
