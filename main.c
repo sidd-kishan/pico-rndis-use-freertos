@@ -318,7 +318,7 @@ int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
 }
 void main_task(__unused void* params)
 {
-    cyw43_arch_init();
+    cyw43_arch_init_with_country(CYW43_COUNTRY_INDIA);
     cyw43_arch_enable_sta_mode();
 	cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
 
@@ -578,7 +578,18 @@ int handle_data(int fd, fd_set *conn) {
     if (bytes_received <= 0) {
         return 1; // Close the connection
     } else {
-        if (strncmp(buffer, "setwifi", 7) == 0) {
+        // Check if the received data is "getinfo"
+        if (strncmp(buffer, "getinfo", 7) == 0) {
+			//xSemaphoreTake(wifi_scan_info_mutex, portMAX_DELAY);
+            // Copy the value of scan_results to the buffer
+			if(queue_try_peek(&qinbound, scan_results))queue_remove_blocking(&qinbound, scan_results);
+            memcpy(buffer, scan_results, strlen(scan_results));
+			buffer[strlen(scan_results)] = '\0';
+			//xSemaphoreGive(wifi_scan_info_mutex);
+			
+			// Send back the modified data (echo or scan_results)
+			bytes_sent = send(fd, buffer, strlen(buffer), 0);
+        } else if (strncmp(buffer, "setwifi", 7) == 0) {
             // Extract ssid and key from the input buffer
             char *ptr = buffer + 8; // Skip "setwifi "
             int ssid_len = 0, key_len = 0;
