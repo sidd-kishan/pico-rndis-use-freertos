@@ -1,6 +1,9 @@
 #Please move to https://github.com/sidd-kishan/pico-webserver for better performance as https://github.com/sidd-kishan/pico-webserver does not use freertos and hence on baremetal and the latest https://github.com/raspberrypi/pico-sdk with latest pico-sdk/lib hence getting phenomenal performance gain and stability and low temps. 
+
 ##This repo will get very rare updates most of my focus will be on https://github.com/sidd-kishan/pico-webserver hence removing tags.
+
 ###A Driverless RNDIS based wifi adapter based on pi pico w to enable usb wifi wlan on Windows on ARM devices like Windows on Raspberry pi 4 that makes use of the default driver of Windows RNDIS drivers
+
 ###pico-rndis-use-freerots
 A project for rp2040
 Use rndis in tinyusb and use freerots to create usb-related tasks.You can also use socket-related interfaces in this project
